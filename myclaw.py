@@ -1,0 +1,68 @@
+from pathlib import Path
+
+from flask import Flask, request, jsonify, send_from_directory
+from langchain.agents import create_agent
+from langgraph.checkpoint.memory import MemorySaver
+
+from my_llm import deepseek_llm
+from tools import all_tools
+
+app = Flask(__name__)
+_root = Path(__file__).resolve().parent
+
+_html_path = _root / "index.html"
+
+SYSTEM_PROMPT = (_root / "Agent.md").read_text(encoding="utf-8")
+
+agent = create_agent(
+    model=deepseek_llm,
+    tools=all_tools,
+    system_prompt=SYSTEM_PROMPT,
+    checkpointer=MemorySaver(),
+)
+
+@app.get("/")
+def index():
+    if _html_path.exists():
+        return _html_path.read_text(encoding="utf-8")
+    return "<h1>myclaw</h1>"
+
+@app.get("/mascot.png")
+def mascot():
+    return send_from_directory(_root, "mascot.png")
+
+@app.post("/chat")
+def chat():
+    user_input = request.json["message"]
+    thread_id = request.json.get("thread_id", "default")
+    print(f"【用户】{user_input}")
+
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = agent.get_state(config)
+    prev_count = len(snapshot.values.get("messages", [])) if snapshot.values else 0
+
+    result = agent.invoke(
+        {"messages": [("user", user_input)]},
+        config=config,
+    )
+    new_messages = result["messages"][prev_count:]
+
+    steps = []
+    for msg in new_messages:
+        if msg.type == "human":
+            continue
+        if msg.type == "ai":
+            if msg.content:
+                print(f"\033[32m【AI】{msg.content}\033[0m")
+                steps.append({"type": "ai", "content": msg.content})
+            if getattr(msg, "tool_calls", None):
+                for tc in msg.tool_calls:
+                    steps.append({"type": "tool_call", "name": tc["name"], "args": tc["args"]})
+        elif msg.type == "tool":
+            print(f"【Agent】{msg.name} 执行完毕")
+            steps.append({"type": "cmd", "name": msg.name, "content": msg.content})
+
+    return jsonify(steps=steps)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", debug=True, port=5000)
