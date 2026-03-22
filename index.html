@@ -137,17 +137,6 @@
     box-shadow: 0 3px 10px rgba(192,57,43,.3);
   }
 
-  #btn-tts {
-    position: fixed; top: 14px; right: 14px;
-    width: 38px; height: 38px; border-radius: 50%; border: none;
-    background: var(--white-glass); backdrop-filter: blur(8px);
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    box-shadow: var(--shadow-soft); z-index: 10; transition: transform .15s;
-  }
-  #btn-tts:active { transform: scale(.9); }
-  #btn-tts.active { background: var(--accent); }
-  #btn-tts.active svg path { fill: #fff; }
-
   /* scrollbar for tool msgs */
   .msg.tool::-webkit-scrollbar { width: 3px; }
   .msg.tool::-webkit-scrollbar-thumb { background: rgba(60,80,100,.3); border-radius: 2px; }
@@ -161,11 +150,6 @@
 </head>
 <body>
 <div id="app">
-
-  <!-- TTS toggle (top-right) -->
-  <button id="btn-tts" title="语音播报开关">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M11 5L6 9H2v6h4l5 4V5z" fill="#c0392b"/><path d="M15.54 8.46a5 5 0 010 7.07" stroke="#c0392b" stroke-width="1.8" stroke-linecap="round"/><path d="M19.07 4.93a10 10 0 010 14.14" stroke="#c0392b" stroke-width="1.8" stroke-linecap="round"/></svg>
-  </button>
 
   <!-- Chat messages -->
   <div id="chat-area"></div>
@@ -194,9 +178,7 @@
   const input     = document.getElementById('msg-input');
   const btnSend   = document.getElementById('btn-send');
   const btnMic    = document.getElementById('btn-mic');
-  const btnTts    = document.getElementById('btn-tts');
 
-  let ttsEnabled = false;
   let hasMessages = false;
 
   /* ---- helpers ---- */
@@ -237,15 +219,6 @@
     loadVoices();
     speechSynthesis.addEventListener('voiceschanged', loadVoices);
   }
-
-  btnTts.addEventListener('click', () => {
-    ttsEnabled = !ttsEnabled;
-    btnTts.classList.toggle('active', ttsEnabled);
-    if (ttsEnabled && window.speechSynthesis) {
-      const warm = new SpeechSynthesisUtterance('');
-      speechSynthesis.speak(warm);
-    }
-  });
 
   function speak(text) {
     if (!window.speechSynthesis || !text) return;
@@ -316,14 +289,30 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
-      const data = await res.json();
+      let data;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const raw = await res.text();
+        removeThinking();
+        addMsg('ai', `服务器返回非 JSON（${res.status}）。请确认已用 http:// 访问本页且 Flask 已启动。`);
+        return;
+      }
       removeThinking();
 
-      let lastAiText = '';
+      if (!res.ok && data.message) {
+        addMsg('ai', data.message || `请求失败（${res.status}）`);
+        return;
+      }
+      if (!data.steps || !Array.isArray(data.steps)) {
+        addMsg('ai', data.message || '响应格式异常，请查看终端日志。');
+        return;
+      }
+
       for (const step of data.steps) {
         if (step.type === 'ai') {
           addMsg('ai', step.content);
-          lastAiText = step.content;
         } else if (step.type === 'tool_call') {
           addMsg('tool', `🔧 ${step.name}(${JSON.stringify(step.args)})`);
         } else if (step.type === 'cmd') {
@@ -331,10 +320,9 @@
           addMsg('tool', `📋 ${step.name} → ${preview}`);
         }
       }
-      if (lastAiText && ttsEnabled) speak(lastAiText);
     } catch (err) {
       removeThinking();
-      addMsg('ai', '网络出错，请稍后重试 😥');
+      addMsg('ai', `无法连接服务：${err && err.message ? err.message : String(err)}。请确认本机已运行 uv run python myclaw.py，且用 http://127.0.0.1:5000 打开页面（不要用本地文件 file://）。`);
     } finally {
       sending = false;
     }
