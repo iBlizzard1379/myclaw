@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-from my_llm import deepseek_llm
+from my_llm import bailian_llm
 from tools import all_tools
 
 app = Flask(__name__)
@@ -15,7 +15,7 @@ _html_path = _root / "index.html"
 SYSTEM_PROMPT = (_root / "Agent.md").read_text(encoding="utf-8")
 
 agent = create_agent(
-    model=deepseek_llm,
+    model=bailian_llm,
     tools=all_tools,
     system_prompt=SYSTEM_PROMPT,
     checkpointer=MemorySaver(),

@@ -26,12 +26,12 @@ bailian_llm: BaseChatModel | None = (
     ) if BAILIAN_API_KEY else None
 )
 
-# zhipu_llm = init_chat_model(
-#     model="glm-4",
-#     model_provider="openai",
-#     api_key=ZHIPUAI_API_KEY,
-#     base_url=ZHIPUAI_BASE_URL,
-# )
+zhipu_llm: BaseChatModel | None = (
+    init_chat_model(
+        model="glm-4-plus", model_provider="openai",
+        api_key=ZHIPUAI_API_KEY, base_url=ZHIPUAI_BASE_URL,
+    ) if ZHIPUAI_API_KEY else None
+)
 
 # anthropic_llm = init_chat_model(
 #     model="claude-3-5-haiku-latest",
