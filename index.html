@@ -289,23 +289,28 @@
     addMsg('user', text);
     const thinkEl = addThinking();
 
+    const TIMEOUT_MS = 180000;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
+
     try {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
+        signal: ac.signal,
       });
+      clearTimeout(timer);
+
+      const raw = await res.text();
+      const trimmed = raw.trim();
+      removeThinking();
+
       let data;
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        data = await res.json();
-      } else {
-        const raw = await res.text();
-        removeThinking();
+      try { data = JSON.parse(trimmed); } catch (_) {
         addMsg('ai', `服务器返回非 JSON（${res.status}）。请确认已用 http:// 访问本页且 Flask 已启动。`);
         return;
       }
-      removeThinking();
 
       if (!res.ok && data.message) {
         addMsg('ai', data.message || `请求失败（${res.status}）`);
@@ -327,8 +332,13 @@
         }
       }
     } catch (err) {
+      clearTimeout(timer);
       removeThinking();
-      addMsg('ai', `无法连接服务：${err && err.message ? err.message : String(err)}。请确认本机已运行 uv run python myclaw.py，且用 http://127.0.0.1:5000 打开页面（不要用本地文件 file://）。`);
+      if (err.name === 'AbortError') {
+        addMsg('ai', '请求超时（已等待 3 分钟），服务可能仍在处理中。请稍后重试或检查终端日志。');
+      } else {
+        addMsg('ai', `无法连接服务：${err && err.message ? err.message : String(err)}。请确认服务已运行（uv run python myclaw.py）且通过 http:// 访问页面。`);
+      }
     } finally {
       sending = false;
     }

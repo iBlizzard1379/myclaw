@@ -4,6 +4,9 @@ import subprocess
 
 from langchain.tools import tool
 from langchain_tavily import TavilySearch
+# from zhipuai import ZhipuAI
+
+# from env_utils import ZHIPUAI_API_KEY, ZHIPUAI_BASE_URL
 
 _OS = platform.system()         # "Windows" / "Linux" / "Darwin"
 _OS_LABEL = "macOS" if _OS == "Darwin" else _OS
@@ -62,5 +65,42 @@ def run_command(command: str) -> str:
     return output or "(no output)"
 
 tavily_search = TavilySearch(max_results=5)
+
+# _zhipu_client = ZhipuAI(api_key=ZHIPUAI_API_KEY, base_url=ZHIPUAI_BASE_URL)
+#
+# @tool
+# def zhipu_web_search(query: str) -> str:
+#     """联网搜索工具：调用智谱AI Web Search API 进行实时联网信息检索。
+#
+#     可查询实时新闻、行业数据、最新政策、百科知识等内容。
+#
+#     Args:
+#         query: 搜索关键词或问题
+#     """
+#     try:
+#         response = _zhipu_client.chat.completions.create(
+#             model="glm-4-plus",
+#             messages=[{"role": "user", "content": query}],
+#             tools=[{
+#                 "type": "web_search",
+#                 "web_search": {
+#                     "enable": True,
+#                     "search_result": True,
+#                     "search_engine": "search_pro",
+#                 },
+#             }],
+#         )
+#         msg = response.choices[0].message
+#         web_results = getattr(msg, "web_search_result", None)
+#         if web_results:
+#             return "\n\n".join(
+#                 f"【标题】{item.get('title')}\n【摘要】{item.get('content')}\n【链接】{item.get('link')}"
+#                 for item in web_results
+#             )
+#         if msg.content:
+#             return msg.content
+#         return "未搜索到相关信息"
+#     except Exception as e:
+#         return f"搜索失败：{e}"
 
 all_tools = [run_command, tavily_search]
